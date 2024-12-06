@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login with MFA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      let mfaSecret = "";
+
+      async function handleLogin() {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const messageBox = document.getElementById("message-box");
+
+        messageBox.textContent = ""; // Clear previous messages
+
+        if (!email || !password) {
+          showMessage("Please fill in both email and password.", "error");
+          return;
+        }
+
+        try {
+          const response = await fetch("http://localhost:3000/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            // Successfully logged in, now generate MFA
+            showMessage("Login successful. Proceed with MFA setup.", "success");
+            setupMFA();
+          } else {
+            showMessage(
+              result.message || "Login failed. Please check your credentials.",
+              "error"
+            );
+          }
+        } catch (error) {
+          showMessage("Network error. Please try again.", "error");
+        }
+      }
+
+      async function setupMFA() {
+        try {
+          const response = await fetch("http://localhost:3000/generate-mfa", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+
+          const result = await response.json();
+          if (response.ok) {
+            // Display QR code
+            document.getElementById("qr-code").src = result.qr_code_url;
+            document.getElementById("step-otp-auth").classList.remove("hidden"); // Show OTP step
+            mfaSecret = result.secret;
+            showMessage(
+              "Scan the QR code with Google Authenticator.",
+              "success"
+            );
+          } else {
+            showMessage(result.message || "Failed to set up MFA.", "error");
+          }
+        } catch (error) {
+          showMessage("Error setting up MFA. Please try again.", "error");
+        }
+      }
+
+      async function handleConfirmation() {
+        const otp = document.getElementById("otp").value.trim();
+        const messageBox = document.getElementById("message-box");
+
+        messageBox.textContent = ""; // Clear previous messages
+
+        if (!otp) {
+          showMessage("Please enter the OTP.", "error");
+          return;
+        }
+
+        try {
+          const response = await fetch("http://localhost:3000/verify-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ otp }),
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            showMessage("OTP verified successfully!", "success");
+            // Redirect to the dashboard or other success page
+            setTimeout(() => {
+              window.location.href = "dashboard.html";
+            }, 1500);
+          } else {
+            showMessage(result.message || "Invalid OTP.", "error");
+          }
+        } catch (error) {
+          showMessage("Error verifying OTP. Please try again.", "error");
+        }
+      }
+
+      function showMessage(message, type) {
+        const messageBox = document.getElementById("message-box");
+        messageBox.textContent = message;
+        messageBox.className =
+          type === "success"
+            ? "text-green-600 font-medium mt-4"
+            : "text-red-600 font-medium mt-4";
+      }
+    </script>
+  </head>
+  <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white shadow-md rounded-lg p-8 w-full max-w-md">
+      <h1 class="text-2xl font-bold text-gray-800 text-center mb-6">Login</h1>
+
+      <div id="message-box"></div>
+
+      <!-- Step 1: Email/Password -->
+      <div id="step-login">
+        <div class="mb-4">
+          <label for="email" class="block text-gray-700 font-medium mb-2"
+            >Email/Username</label
+          >
+          <input
+            type="text"
+            id="email"
+            name="email"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter your email or username"
+            required
+          />
+        </div>
+        <div class="mb-4">
+          <label for="password" class="block text-gray-700 font-medium mb-2"
+            >Password</label
+          >
+          <input
+            type="password"
+            id="password"
+            name="password"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter your password"
+            required
+          />
+        </div>
+        <button
+          type="button"
+          onclick="handleLogin()"
+          class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-lg transition duration-300"
+        >
+          Login
+        </button>
+      </div>
+
+      <!-- Step 2: OTP Authentication (Hidden Initially) -->
+      <div id="step-otp-auth" class="hidden">
+        <h2 class="text-xl font-semibold text-center mb-4">
+          Verify Your Identity
+        </h2>
+        <p class="text-center mb-4">
+          Please scan the QR code with Google Authenticator and enter the OTP.
+        </p>
+        <div class="text-center mb-4">
+          <img id="qr-code" class="mx-auto" alt="QR Code" />
+        </div>
+        <div class="mb-4">
+          <label for="otp" class="block text-gray-700 font-medium mb-2"
+            >OTP Code</label
+          >
+          <input
+            type="text"
+            id="otp"
+            name="otp"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter OTP"
+            required
+          />
+        </div>
+        <button
+          type="button"
+          onclick="handleConfirmation()"
+          class="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2 rounded-lg transition duration-300"
+        >
+          Confirm OTP
+        </button>
+      </div>
+    </div>
+  </body>
+</html>
